@@ -1,17 +1,144 @@
 ---
-title: "Practical Machine Learning Course Project"
+title: "Practical Machine Learning Final Project"
 output: html_document
 ---
 
+Peggy Lu  
+February 19, 2017  
+
+##Executive Summary   
+With devices such as Jawbone Up, Nike FuelBand, and Fitbit it is possible to collect a larger amount of data about personal activity.  People who wear these type of devices can quantity how much of a particular activity they do, but they rarely quantity how well they do it. These participants were asked to performed one set of ten repetitions of the unilateral dumbbell biceps curl in five ways -  exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).  
+
+The training data for this project are available at https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv  
+The test data are available at https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv  
+
+The goal of this project is to predict the manner in which they did the exercise based the data collected from accelerometers on the belt, forearm, arm, and dumbbell of six participants.  
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+##Data Exploratory  
+Include necessary libraries and download data from source website  
+```{r}
+library(caret)
+library(gbm)
+library(rattle)
+trainCSV <- 'pml-training.csv'
+validationCSV <- 'pml-testing.csv'
+if (!file.exists(trainCSV) | (!file.exists(validationCSV))) 
+{
+  trainURL <- 'https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv'
+  validationURL <- 'https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv'
+  download.file(trainURL, trainCSV)
+  download.file(validationURL, validationCSV)
+}
+```
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+Create two datasets  
+One is for training and one for validation purpose.  Remove any blank or null values.   
+```{r}
+trainRaw<-read.csv(trainCSV, na.strings = c("", "NA"))
+validationRaw<-read.csv(validationCSV, na.strings = c("", "NA"))
+```
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+For training dataset, there are total of 19622 observations with 160 variables.
+```{r}
+dim(trainRaw)
 
+```
 
+For Validation dataset, there are total of 20 observations with 160 variables. 
+```{r}
+dim(validationRaw)
 
+```
+
+##Covariate Creation  
+First 7 columns will be excluded from the model since they are irrelevant.   
+```{r}
+colnames(trainRaw)[1:7]
+colnames(validationRaw)[1:7]
+trainInput<-trainRaw[,-c(1:7)]
+validationInput<-validationRaw[,-c(1:7)]
+```
+
+Remove Near Zero Variables  
+```{r}
+trainNZV<-nearZeroVar(trainInput,saveMetrics = TRUE)
+trainInput<-trainInput[,trainNZV[,4]==FALSE]
+validationNZV<-nearZeroVar(validationInput,saveMetrics = TRUE)
+validationInput<-validationInput[,validationNZV[,4]==FALSE]
+```
+
+Since there are lots of variables in both datasets, the intersection of the 2 datasets will yield a common list of variables to be included in the models.  See Figure 1 of the appendix for a common set of variables which exist in the training and validation datasets.  
+```{r}
+trainColumns<-colnames(trainInput, do.NULL = TRUE, prefix = "col")
+validationColumns<-colnames(validationInput, do.NULL = TRUE, prefix = "col")
+columns<-intersect(validationColumns, trainColumns)
+trainInput<-trainInput[, c('classe', columns)]
+```
+
+Create Training and Test Sets  
+Split the original training dataset into training and test sets based on a 60/40 allocation.  
+```{r}
+set.seed(7)
+inTrain<- createDataPartition(trainInput$classe, p=0.6, list=FALSE)
+training<-trainInput[inTrain,]
+testing<-trainInput[-inTrain,]
+```
+
+Set up the 5-fold cross validation to improve model runtime performance  
+```{r}
+fitControl <- trainControl(method="cv", number=5)
+```
+
+##Model Selections  
+The following Models are selected for comparison purpose    
+
+###Predict with Random Forest  
+```{r}
+modRF <- train(classe~ .,data=training,method="rf", trControl=fitControl, verbose=FALSE)
+predRF<-predict(modRF, testing)
+confusionMatrix(predRF, testing$classe)
+```
+
+###Predict with GBM  
+```{r}
+
+modGBM <- train(classe~ .,data=training,method="gbm", trControl=fitControl, verbose=FALSE)
+predGBM<-predict(modGBM, testing)
+confusionMatrix(predGBM, testing$classe)
+```
+
+###Predict with Classification Tree 
+```{r}
+modTree <- train(classe~ .,data=training,method="rpart", trControl=fitControl)
+predTree<-predict(modTree, testing)
+confusionMatrix(predTree, testing$classe)
+```
+See Figure 2 for the Classification Tree plot   
+
+##Conclusion  
+When comparing the results from all three models above, the accuracy from the Random Forest model is 0.9938,  the accuracy of GBM is 0.9627 and the accuracy of the Classification Tree model is 0.493.  Since the Random Forest model yields the best accuracy, it is used for predicting the validation dataset.  
+```{r}
+pred<-predict(modRF, validationInput)
+print(pred)
+```
+
+Out of Sample Error  
+Since the accuracy of the random forest is 0.9937548, therefore the out of sample error is 0.00624522(1-0.9937548)
+```{r}
+1-confusionMatrix(predRF, testing$classe)$overall[1]
+```
+
+##Appendix  
+
+Figure 1 - Common variables in training and validation datasets  
+```{r}
+print(columns)
+```
+
+Figure 2 -  Plot for the Classification Tree  
+```{r}
+fancyRpartPlot(modTree$finalModel)
+```
