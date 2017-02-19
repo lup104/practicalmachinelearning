@@ -87,13 +87,13 @@ training<-trainInput[inTrain,]
 testing<-trainInput[-inTrain,]
 ```
 
-Set up the 5-fold cross validation to improve model runtime performance  
+##Model Selections  
+For this project, the following modes will be evaluated using the training dataset:  Random Forest, GPM, Decision Tree.  The model that yields the highest accuracy will be used to predict the validation dataset.    
+
+Set up the 5-fold cross validation for the training method.   
 ```{r}
 fitControl <- trainControl(method="cv", number=5)
 ```
-
-##Model Selections  
-The following Models are selected for comparison purpose    
 
 ###Predict with Random Forest  
 ```{r}
@@ -126,7 +126,7 @@ print(pred)
 ```
 
 Out of Sample Error  
-Since the accuracy of the random forest is 0.9937548, therefore the out of sample error is 0.00624522(1-0.9937548)
+Since the accuracy of the random forest is 0.9937548, therefore the out of sample error using 5-fold cross validation method is 0.00624522.
 ```{r}
 1-confusionMatrix(predRF, testing$classe)$overall[1]
 ```
